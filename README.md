@@ -10,7 +10,7 @@ Built as a Cloud Run Job for daily automation. Cost: ~$0.003/execution.
 
 ## Demo
 
-![AI News Scanner execution demo](execution_scan.gif)
+![AI News Scanner execution demo](demo.gif)
 
 ## How it works
 
