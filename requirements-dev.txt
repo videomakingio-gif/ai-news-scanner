@@ -1,3 +1,6 @@
 # Dev/test dependencies
 pytest>=8.0
 flake8>=7.0
+
+# Optional: rich terminal output (for --rich flag / demos)
+rich>=13.0

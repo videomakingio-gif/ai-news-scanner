@@ -78,6 +78,17 @@ python scanner.py
 
 By default, the scanner saves to `./output/`. Articles are stored as JSON files named by date (`2026-03-31.json`).
 
+### Rich output (for local use / demos)
+
+```bash
+pip install rich
+python scanner.py --rich
+# or with a custom config:
+python scanner.py --rich --config my-config.yaml
+```
+
+Enables animated progress bars, colour-coded scores (`████████░░`), and a results table. Standard logging output is used by default (and always on Cloud Run).
+
 ### Custom config
 
 ```bash

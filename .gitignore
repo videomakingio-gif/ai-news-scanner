@@ -27,6 +27,7 @@ venv/
 *.png
 report.md
 generate_media.py
+demo.py
 
 # OS
 .DS_Store

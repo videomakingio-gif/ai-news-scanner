@@ -499,6 +499,260 @@ def send_notifications(articles: list[dict], config: dict):
 
 
 # ---------------------------------------------------------------------------
+# Rich output helpers (used only with --rich flag)
+# ---------------------------------------------------------------------------
+
+BANNER = r"""
+[bold cyan]
+    _    ___   _   _                     ____
+   / \  |_ _| | \ | | _____      _____  / ___|  ___ __ _ _ __  _ __   ___ _ __
+  / _ \  | |  |  \| |/ _ \ \ /\ / / __| \___ \ / __/ _` | '_ \| '_ \ / _ \ '__|
+ / ___ \ | |  | |\  |  __/\ V  V /\__ \  ___) | (_| (_| | | | | | | |  __/ |
+/_/   \_\___| |_| \_|\___| \_/\_/ |___/ |____/ \___\__,_|_| |_|_| |_|\___|_|
+[/bold cyan]
+[dim]Intelligent RSS aggregator with LLM-powered relevance scoring[/dim]
+"""
+
+
+def _score_color(score: int) -> str:
+    """Return rich color tag based on score."""
+    if score >= 8:
+        return "bold green"
+    elif score >= 7:
+        return "green"
+    elif score >= 5:
+        return "yellow"
+    elif score >= 3:
+        return "dim yellow"
+    else:
+        return "dim red"
+
+
+def _score_bar(score: int) -> str:
+    """Return a visual bar for the score (e.g. '████████░░')."""
+    return "█" * score + "░" * (10 - score)
+
+
+def _main_rich(config_path: str = None):
+    """Run the scanner with Rich terminal output (for local use / demos)."""
+    try:
+        from rich.console import Console
+        from rich.table import Table
+        from rich.panel import Panel
+        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+        from rich.rule import Rule
+        from rich import box
+    except ImportError:
+        print("Error: 'rich' is not installed. Run: pip install rich")
+        raise SystemExit(1)
+
+    console = Console()
+
+    # Banner
+    console.print(BANNER)
+    console.print()
+
+    # Config
+    config = load_config(config_path)
+    sources = get_enabled_sources(config)
+    threshold = config.get("scoring", {}).get("threshold", 7)
+    hours_lookback = config.get("fetch", {}).get("hours_lookback", 26)
+    provider = config.get("scoring", {}).get("provider", "anthropic")
+    model = config.get("scoring", {}).get("model", "claude-haiku-4-5-20251001")
+
+    start = datetime.now(timezone.utc)
+    date_str = start.strftime("%Y-%m-%d")
+    cutoff = start - timedelta(hours=hours_lookback)
+
+    cfg_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    cfg_table.add_column("Key", style="dim")
+    cfg_table.add_column("Value", style="bold")
+    cfg_table.add_row("Date", date_str)
+    cfg_table.add_row("Sources", str(len(sources)))
+    cfg_table.add_row("Provider", f"{provider} ({model})")
+    cfg_table.add_row("Threshold", f"{threshold}/10")
+    cfg_table.add_row("Lookback", f"{hours_lookback}h")
+    cfg_table.add_row("Storage", config.get("storage", {}).get("backend", "local"))
+    console.print(Panel(cfg_table, title="[bold]Configuration[/bold]", border_style="cyan"))
+    console.print()
+
+    # Phase 1: Fetch
+    console.print(Rule("[bold cyan]Phase 1: Fetch RSS[/bold cyan]"))
+    console.print()
+    all_articles = []
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(bar_width=30),
+        TextColumn("[bold]{task.completed}/{task.total}[/bold]"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Fetching feeds...", total=len(sources))
+        for source in sources:
+            articles = fetch_articles(source, cutoff, config)
+            all_articles.extend(articles)
+            status = f"[green]+{len(articles)}[/green]" if articles else "[dim]0[/dim]"
+            progress.update(task, advance=1, description=f"  {source['name'][:30]:<30} {status}")
+
+    console.print()
+    console.print(f"  [bold]{len(all_articles)}[/bold] articles fetched from [bold]{len(sources)}[/bold] sources")
+    console.print()
+
+    if not all_articles:
+        console.print("[yellow]No new articles found. Done.[/yellow]")
+        return
+
+    # Phase 2: Dedup
+    console.print(Rule("[bold cyan]Phase 2: Dedup[/bold cyan]"))
+    console.print()
+    recent_hashes = load_recent_hashes(date_str, config)
+    for art in all_articles:
+        art["hash"] = hashlib.md5(
+            f"{art['title']}:{art['source']}".encode()
+        ).hexdigest()[:12]
+    pre_dedup = len(all_articles)
+    all_articles = [a for a in all_articles if a["hash"] not in recent_hashes]
+    removed = pre_dedup - len(all_articles)
+    console.print(f"  Previous hashes loaded: [bold]{len(recent_hashes)}[/bold]")
+    console.print(f"  Duplicates removed:     [bold red]{removed}[/bold red]")
+    console.print(f"  Articles to score:      [bold green]{len(all_articles)}[/bold green]")
+    console.print()
+
+    if not all_articles:
+        console.print("[yellow]All articles already seen. Done.[/yellow]")
+        return
+
+    # Phase 3: Score
+    console.print(Rule("[bold cyan]Phase 3: LLM Scoring[/bold cyan]"))
+    console.print()
+
+    api_key = _get_api_key_for_provider(provider)
+    if not api_key:
+        env_var = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}
+        console.print(f"[bold red]{env_var.get(provider, 'API_KEY')} not set. Cannot score articles.[/bold red]")
+        return
+
+    try:
+        llm_caller = _create_llm_caller(config)
+    except Exception as e:
+        console.print(f"[bold red]Error creating LLM caller: {e}[/bold red]")
+        return
+
+    scored = []
+    relevant = []
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(bar_width=30),
+        TextColumn("[bold]{task.completed}/{task.total}[/bold]"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Scoring articles...", total=len(all_articles))
+        for article in all_articles:
+            result = score_article(None, article, config, llm_caller=llm_caller)
+            if result:
+                scored.append(result)
+                s = result["relevance_score"]
+                color = _score_color(s)
+                icon = "✓" if s >= threshold else "·"
+                progress.update(
+                    task, advance=1,
+                    description=f"  [{color}]{icon} [{s:>2}/10][/{color}] {result['title'][:55]}"
+                )
+                if s >= threshold:
+                    relevant.append(result)
+            else:
+                progress.update(task, advance=1, description=f"  [dim]? [--/10] {article['title'][:55]}[/dim]")
+
+    relevant.sort(key=lambda x: x["relevance_score"], reverse=True)
+    console.print()
+
+    # Results
+    console.print(Rule("[bold cyan]Results[/bold cyan]"))
+    console.print()
+
+    stats = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    stats.add_column("Metric", style="dim")
+    stats.add_column("Value", style="bold")
+    stats.add_row("Articles scored", str(len(scored)))
+    stats.add_row(f"Relevant (≥ {threshold}/10)", f"[bold green]{len(relevant)}[/bold green]")
+    stats.add_row("Filtered out", str(len(scored) - len(relevant)))
+    console.print(Panel(stats, title="[bold]Summary[/bold]", border_style="green"))
+    console.print()
+
+    if relevant:
+        tbl = Table(
+            title=f"[bold green]Top Articles ({len(relevant)})[/bold green]",
+            box=box.ROUNDED, show_lines=True, padding=(0, 1),
+        )
+        tbl.add_column("Score", justify="center", width=12, no_wrap=True)
+        tbl.add_column("Source", style="cyan", width=20, no_wrap=True)
+        tbl.add_column("Title", width=50)
+        tbl.add_column("Tags", style="dim", width=20)
+        tbl.add_column("Why", style="dim italic", width=25)
+        for art in relevant:
+            s = art["relevance_score"]
+            color = _score_color(s)
+            tbl.add_row(
+                f"[{color}]{_score_bar(s)} {s}/10[/{color}]",
+                art["source"][:20],
+                art["title"][:50],
+                ", ".join(art.get("tags", []))[:20],
+                art.get("relevance_reason", "")[:25],
+            )
+        console.print(tbl)
+        console.print()
+
+    filtered = [a for a in scored if a["relevance_score"] < threshold]
+    if filtered:
+        console.print(f"  [dim]Filtered out ({len(filtered)} articles below threshold):[/dim]")
+        for art in filtered[:5]:
+            s = art["relevance_score"]
+            color = _score_color(s)
+            console.print(f"    [{color}]{s}/10[/{color}]  [dim]{art['source'][:15]:<15}[/dim]  {art['title'][:60]}")
+        if len(filtered) > 5:
+            console.print(f"    [dim]... and {len(filtered) - 5} more[/dim]")
+        console.print()
+
+    # Phase 4: Save
+    if relevant:
+        console.print(Rule("[bold cyan]Phase 4: Save[/bold cyan]"))
+        console.print()
+        save_articles(relevant, date_str, config)
+        backend = config.get("storage", {}).get("backend", "local")
+        if backend == "local":
+            out_path = Path(config.get("storage", {}).get("local_path", "./output"))
+            console.print(f"  Saved to [bold]{out_path / f'{date_str}.json'}[/bold]")
+        else:
+            bucket = config.get("storage", {}).get("gcs_bucket", "")
+            console.print(f"  Saved to [bold]gs://{bucket}/scans/{date_str}.json[/bold]")
+        console.print()
+
+    # Phase 5: Notify
+    if relevant:
+        send_notifications(relevant, config)
+
+    # Final report
+    elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+    est_input = len(scored) * 250
+    est_output = len(scored) * 30
+    est_cost = (est_input * 0.25 / 1_000_000) + (est_output * 1.25 / 1_000_000)
+
+    console.print(Rule("[bold cyan]Done[/bold cyan]"))
+    console.print()
+    final = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    final.add_column("", style="dim")
+    final.add_column("", style="bold")
+    final.add_row("Time", f"{elapsed:.1f}s")
+    final.add_row("Cost", f"~${est_cost:.4f}")
+    final.add_row("Sources", str(len(sources)))
+    final.add_row("Scored", str(len(scored)))
+    final.add_row("Saved", f"[bold green]{len(relevant)}[/bold green]")
+    console.print(Panel(final, title="[bold]Execution Report[/bold]", border_style="cyan"))
+    console.print()
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -516,7 +770,11 @@ def _get_api_key_for_provider(provider: str) -> Optional[str]:
     return os.environ.get(env_var)
 
 
-def main(config_path: str = None):
+def main(config_path: str = None, use_rich: bool = False):
+    if use_rich:
+        _main_rich(config_path)
+        return
+
     config = load_config(config_path)
 
     start = datetime.now(timezone.utc)
@@ -606,5 +864,10 @@ if __name__ == "__main__":
         default=None,
         help="Path to config.yaml (default: ./config.yaml or CONFIG_PATH env)",
     )
+    parser.add_argument(
+        "--rich", "-r",
+        action="store_true",
+        help="Rich terminal output with progress bars and tables (requires: pip install rich)",
+    )
     args = parser.parse_args()
-    main(config_path=args.config)
+    main(config_path=args.config, use_rich=args.rich)
