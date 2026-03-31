@@ -5,8 +5,10 @@
 # Prerequisites:
 #   - gcloud CLI authenticated
 #   - GCP project with Cloud Run, Scheduler, Secret Manager APIs enabled
-#   - Anthropic API key stored in Secret Manager:
+#   - At least one LLM API key stored in Secret Manager:
 #     echo -n "sk-ant-..." | gcloud secrets create anthropic-api-key --data-file=-
+#     # For OpenAI:  echo -n "sk-..." | gcloud secrets create openai-api-key --data-file=-
+#     # For Gemini:  echo -n "..."    | gcloud secrets create gemini-api-key --data-file=-
 # ============================================================
 
 set -euo pipefail
@@ -51,6 +53,11 @@ spec:
           containers:
           - image: gcr.io/$PROJECT_ID/$JOB_NAME
             env:
+            # Default: Anthropic. To use OpenAI or Gemini instead, change the
+            # secret name and env var below. Supported combinations:
+            #   ANTHROPIC_API_KEY -> anthropic-api-key
+            #   OPENAI_API_KEY   -> openai-api-key
+            #   GEMINI_API_KEY   -> gemini-api-key
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:

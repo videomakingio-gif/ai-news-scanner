@@ -62,7 +62,7 @@ Add, remove, or disable sources in `config.yaml`. No code changes needed.
 ### Local setup
 
 ```bash
-git clone https://github.com/videomakingio/ai-news-scanner.git
+git clone https://github.com/videomakingio-gif/ai-news-scanner.git
 cd ai-news-scanner
 
 pip install -r requirements.txt

@@ -11,7 +11,7 @@ Supported LLM providers:
 
 Deploy as a Cloud Run Job with Cloud Scheduler for daily automation.
 
-GitHub: github.com/videomakingio/ai-news-scanner
+GitHub: github.com/videomakingio-gif/ai-news-scanner
 License: MIT
 """
 

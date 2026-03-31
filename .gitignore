@@ -22,6 +22,12 @@ venv/
 *.swp
 *.swo
 
+# Work files
+*.log
+*.png
+report.md
+generate_media.py
+
 # OS
 .DS_Store
 Thumbs.db

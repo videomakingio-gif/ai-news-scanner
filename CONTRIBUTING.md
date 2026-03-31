@@ -6,13 +6,13 @@ Thank you for your interest in contributing! 🎉
 
 ### Reporting Bugs
 
-- Use the [bug report template](https://github.com/videomakingio/ai-news-scanner/issues/new?template=bug_report.md)
+- Use the [bug report template](https://github.com/videomakingio-gif/ai-news-scanner/issues/new?template=bug_report.md)
 - Include your Python version, OS, and the error traceback
 - If possible, share your `config.yaml` (remove API keys!)
 
 ### Suggesting Features
 
-- Use the [feature request template](https://github.com/videomakingio/ai-news-scanner/issues/new?template=feature_request.md)
+- Use the [feature request template](https://github.com/videomakingio-gif/ai-news-scanner/issues/new?template=feature_request.md)
 - Explain the use case, not just the solution
 
 ### Pull Requests
