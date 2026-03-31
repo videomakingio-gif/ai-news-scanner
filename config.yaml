@@ -1,0 +1,204 @@
+# ============================================================
+# AI News Scanner — Configuration
+# ============================================================
+# Personalizza fonti, scoring e output per il tuo caso d'uso.
+# Copia questo file e modifica a piacere.
+# ============================================================
+
+# --- Scoring ---
+scoring:
+  model: "claude-haiku-4-5-20251001"   # Modello per lo scoring (Haiku = economico e veloce)
+  threshold: 7                          # Salva solo articoli con score >= threshold (1-10)
+  max_tokens: 100                       # Max token per risposta scoring
+
+  # Profilo di rilevanza: descrive CHI sei e COSA ti interessa.
+  # Claude usa questo profilo per assegnare punteggi.
+  # Personalizzalo per il tuo dominio.
+  profile: |
+    Sei un filtro di rilevanza per un AI Automation Architect che lavora con
+    Claude, Python e Google Cloud per automatizzare processi B2B per PMI
+    e freelancer italiani.
+
+    Criteri di rilevanza alta (8-10):
+    - Novita' su Claude, Anthropic, Claude Code, MCP, Agents
+    - Automazione AI applicata a business reali (non ricerca accademica)
+    - AI Act, regolamentazione AI in Europa/Italia
+    - Case study di implementazione AI in PMI
+    - Tool e workflow per freelancer/solopreneur con AI
+
+    Criteri di rilevanza media (5-7):
+    - Novita' su altri LLM (GPT, Gemini, Llama) con applicazioni pratiche
+    - Trend AI che impattano il mercato italiano
+    - Cloud computing, serverless, deploy
+
+    Criteri di rilevanza bassa (1-4):
+    - Ricerca accademica pura senza applicazione pratica
+    - Hype generico senza sostanza
+    - News corporate (funding round, assunzioni) senza impatto operativo
+
+# --- Sources ---
+# Ogni fonte ha: name, url (RSS/Atom), lang, category, enabled
+# Disabilita una fonte con enabled: false (senza rimuoverla)
+
+sources:
+  # === International — AI Labs ===
+  - name: "OpenAI Blog"
+    url: "https://openai.com/blog/rss.xml"
+    lang: "en"
+    category: "lab"
+    enabled: true
+
+  - name: "Google AI Blog"
+    url: "https://blog.google/technology/ai/rss/"
+    lang: "en"
+    category: "lab"
+    enabled: true
+
+  - name: "Hugging Face Blog"
+    url: "https://huggingface.co/blog/feed.xml"
+    lang: "en"
+    category: "lab"
+    enabled: true
+
+  - name: "Microsoft AI Blog"
+    url: "https://blogs.microsoft.com/ai/feed/"
+    lang: "en"
+    category: "lab"
+    enabled: true
+
+  # === International — Tech Media ===
+  - name: "MIT Tech Review AI"
+    url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  - name: "The Verge AI"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  - name: "Ars Technica AI"
+    url: "https://arstechnica.com/ai/feed/"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  - name: "TechCrunch"
+    url: "https://techcrunch.com/feed/"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  # === International — Newsletters & Blogs ===
+  - name: "Simon Willison"
+    url: "https://simonwillison.net/atom/everything/"
+    lang: "en"
+    category: "newsletter"
+    enabled: true
+
+  - name: "Latent Space"
+    url: "https://www.latent.space/feed"
+    lang: "en"
+    category: "newsletter"
+    enabled: true
+
+  - name: "Import AI (Jack Clark)"
+    url: "https://jack-clark.net/feed/"
+    lang: "en"
+    category: "newsletter"
+    enabled: true
+
+  # === International — Developer & Research ===
+  - name: "arXiv cs.AI"
+    url: "https://arxiv.org/rss/cs.AI"
+    lang: "en"
+    category: "research"
+    enabled: true
+
+  - name: "KDnuggets"
+    url: "https://www.kdnuggets.com/feed"
+    lang: "en"
+    category: "developer"
+    enabled: true
+
+  - name: "Machine Learning Mastery"
+    url: "https://machinelearningmastery.com/feed/"
+    lang: "en"
+    category: "developer"
+    enabled: true
+
+  # === International — Policy & Regulation ===
+  - name: "Politico EU"
+    url: "https://www.politico.eu/feed/"
+    lang: "en"
+    category: "regulation"
+    enabled: true
+
+  # === Italia ===
+  - name: "AI4Business"
+    url: "https://www.ai4business.it/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "Agenda Digitale"
+    url: "https://www.agendadigitale.eu/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "StartupItalia"
+    url: "https://startupitalia.eu/feed"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "Wired Italia"
+    url: "https://www.wired.it/feed/rss/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "Ninja Marketing"
+    url: "https://www.ninja.it/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "Key4biz"
+    url: "https://www.key4biz.it/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+# --- Fetch ---
+fetch:
+  max_articles_per_source: 5    # Max articoli per fonte per scan
+  hours_lookback: 26            # Cattura articoli delle ultime N ore
+  timeout_seconds: 10           # Timeout per fetch RSS
+  user_agent: "AINewsScanner/1.0"
+
+# --- Storage ---
+storage:
+  # Supporta "gcs" (Google Cloud Storage) o "local" (file system)
+  backend: "gcs"
+
+  # Google Cloud Storage
+  gcs_bucket: "gl-ai-news"
+  gcs_prefix: "scans"
+
+  # Local (alternativa per dev/test)
+  local_path: "./output"
+
+  # Dedup: controlla gli ultimi N giorni
+  dedup_days: 3
+
+# --- Output ---
+output:
+  # Formato output: "json" o "markdown"
+  format: "json"
+
+  # Genera anche un file latest.json con l'ultimo scan
+  write_latest: true

@@ -1,0 +1,41 @@
+# Example: Minimal config (3 sources, local storage)
+# Great for testing or personal use
+
+scoring:
+  model: "claude-haiku-4-5-20251001"
+  threshold: 6
+  profile: |
+    General AI and tech news relevance filter.
+    Score higher for practical, actionable content.
+    Score lower for hype, speculation, and pure research.
+
+sources:
+  - name: "Ars Technica AI"
+    url: "https://arstechnica.com/ai/feed/"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  - name: "Simon Willison"
+    url: "https://simonwillison.net/atom/everything/"
+    lang: "en"
+    category: "newsletter"
+    enabled: true
+
+  - name: "The Verge AI"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+fetch:
+  max_articles_per_source: 3
+  hours_lookback: 24
+
+storage:
+  backend: "local"
+  local_path: "./output"
+  dedup_days: 2
+
+output:
+  write_latest: true

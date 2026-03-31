@@ -1,0 +1,72 @@
+# Example: DevOps / Platform Engineering profile
+# Copy to config.yaml and customize
+
+scoring:
+  model: "claude-haiku-4-5-20251001"
+  threshold: 7
+  max_tokens: 100
+  profile: |
+    You are a relevance filter for a DevOps engineer focused on
+    Kubernetes, observability, platform engineering, and cloud-native infrastructure.
+
+    High relevance (8-10):
+    - Kubernetes releases, CVEs, and best practices
+    - Observability (Prometheus, Grafana, OpenTelemetry, Datadog)
+    - Platform engineering tools and patterns
+    - Infrastructure as Code (Terraform, Pulumi, Crossplane)
+    - CI/CD pipeline innovations
+
+    Medium relevance (5-7):
+    - Cloud provider updates (AWS, GCP, Azure)
+    - Container security and supply chain
+    - SRE practices and incident management
+
+    Low relevance (1-4):
+    - Frontend frameworks and UI libraries
+    - AI/ML research without infra implications
+    - Marketing and business news
+
+sources:
+  - name: "KubeBlog"
+    url: "https://kubernetes.io/feed.xml"
+    lang: "en"
+    category: "k8s"
+    enabled: true
+
+  - name: "CNCF Blog"
+    url: "https://www.cncf.io/blog/feed/"
+    lang: "en"
+    category: "cloud-native"
+    enabled: true
+
+  - name: "HashiCorp Blog"
+    url: "https://www.hashicorp.com/blog/feed.xml"
+    lang: "en"
+    category: "iac"
+    enabled: true
+
+  - name: "The New Stack"
+    url: "https://thenewstack.io/feed/"
+    lang: "en"
+    category: "devops"
+    enabled: true
+
+  - name: "DevOps.com"
+    url: "https://devops.com/feed/"
+    lang: "en"
+    category: "devops"
+    enabled: true
+
+fetch:
+  max_articles_per_source: 5
+  hours_lookback: 26
+  timeout_seconds: 10
+
+storage:
+  backend: "local"
+  local_path: "./output"
+  dedup_days: 3
+
+output:
+  format: "json"
+  write_latest: true
