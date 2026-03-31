@@ -1,0 +1,52 @@
+# Example: OpenAI GPT-4o-mini configuration
+# Copy to config.yaml and set OPENAI_API_KEY env variable
+
+scoring:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  threshold: 7
+  max_tokens: 100
+  profile: |
+    You are a relevance filter for a tech professional.
+    Score articles 1-10 based on practical applicability.
+
+    High relevance (8-10):
+    - AI tools for productivity
+    - New model releases with practical use cases
+    - Developer tools and workflows
+
+    Low relevance (1-4):
+    - Pure academic research
+    - Corporate funding news
+    - Hype without substance
+
+sources:
+  - name: "Ars Technica AI"
+    url: "https://arstechnica.com/ai/feed/"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  - name: "The Verge AI"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  - name: "Simon Willison"
+    url: "https://simonwillison.net/atom/everything/"
+    lang: "en"
+    category: "newsletter"
+    enabled: true
+
+fetch:
+  max_articles_per_source: 5
+  hours_lookback: 26
+
+storage:
+  backend: "local"
+  local_path: "./output"
+  dedup_days: 3
+
+output:
+  write_latest: true

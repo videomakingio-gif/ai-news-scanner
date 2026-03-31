@@ -1,28 +1,55 @@
 # AI News Scanner
 
-Intelligent RSS aggregator with LLM-powered relevance scoring. Scans 21 AI news sources daily, scores each article against your professional profile using Claude Haiku, and saves only what's relevant to you.
+[![CI](https://github.com/videomakingio/ai-news-scanner/actions/workflows/ci.yml/badge.svg)](https://github.com/videomakingio/ai-news-scanner/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Cost: ~$0.09/month](https://img.shields.io/badge/cost-~%240.09%2Fmonth-brightgreen)](https://github.com/videomakingio/ai-news-scanner#cost)
+
+Intelligent RSS aggregator with LLM-powered relevance scoring. Scans 24 AI news sources daily, scores each article against your professional profile using an LLM, and saves only what's relevant to you.
 
 Built as a Cloud Run Job for daily automation. Cost: ~$0.003/execution.
+
+## Demo
+
+![AI News Scanner execution demo](execution_scan.gif)
 
 ## How it works
 
 ```
-21 RSS/Atom feeds → fetch articles → dedup (last 3 days) → Claude Haiku scoring → filter (≥7/10) → save to GCS or local
+24 RSS/Atom feeds → fetch articles → dedup (last 3 days) → LLM scoring → filter (≥7/10) → save → notify
 ```
 
-Each article gets scored 1-10 against a customizable relevance profile. Only articles above your threshold are saved. Previous scans are used for deduplication.
+Each article gets scored 1-10 against a customizable relevance profile. Only articles above your threshold are saved. Results are sent to Telegram/Slack if configured.
 
-## Sources (21 default)
+## LLM Providers
+
+Choose your preferred LLM provider via `config.yaml`:
+
+| Provider | Model | Cost/run | Env Variable |
+|----------|-------|----------|-------------|
+| **Anthropic** (default) | Claude Haiku 4.5 | ~$0.003 | `ANTHROPIC_API_KEY` |
+| **OpenAI** | GPT-4o-mini | ~$0.005 | `OPENAI_API_KEY` |
+| **Google Gemini** | Gemini 2.0 Flash | Free tier! | `GEMINI_API_KEY` |
+
+```yaml
+scoring:
+  provider: "anthropic"   # "anthropic", "openai", or "gemini"
+  model: "claude-haiku-4-5-20251001"
+```
+
+See `examples/` for ready-to-use configs for each provider.
+
+## Sources (24 default)
 
 | Category | Sources |
-|----------|---------|
+|----------|---------| 
 | **AI Labs** | OpenAI, Google AI, Hugging Face, Microsoft AI |
 | **Tech Media** | MIT Tech Review, The Verge AI, Ars Technica, TechCrunch |
 | **Newsletters** | Simon Willison, Latent Space, Import AI (Jack Clark) |
 | **Research** | arXiv cs.AI |
 | **Developer** | KDnuggets, Machine Learning Mastery |
 | **EU Policy** | Politico EU |
-| **Italia** | AI4Business, Agenda Digitale, StartupItalia, Wired Italia, Ninja Marketing, Key4biz |
+| **Italia** | AI4Business, Agenda Digitale, StartupItalia, Wired Italia, Ninja Marketing, Key4biz, IlSole24Ore Tech, CorCom, HDblog |
 
 Add, remove, or disable sources in `config.yaml`. No code changes needed.
 
@@ -31,7 +58,7 @@ Add, remove, or disable sources in `config.yaml`. No code changes needed.
 ### Prerequisites
 
 - Python 3.10+
-- [Anthropic API key](https://console.anthropic.com/)
+- At least one LLM API key ([Anthropic](https://console.anthropic.com/), [OpenAI](https://platform.openai.com/), or [Google AI](https://aistudio.google.com/))
 
 ### Local setup
 
@@ -41,8 +68,10 @@ cd ai-news-scanner
 
 pip install -r requirements.txt
 
-# Set your API key
+# Set your API key (pick one)
 export ANTHROPIC_API_KEY="sk-ant-..."
+# export OPENAI_API_KEY="sk-..."
+# export GEMINI_API_KEY="..."
 
 # Run with local storage (no GCS needed)
 python scanner.py
@@ -55,7 +84,7 @@ By default, the scanner saves to `./output/`. Articles are stored as JSON files 
 ```bash
 # Copy and edit the config
 cp config.yaml my-config.yaml
-# Edit my-config.yaml to change sources, scoring profile, etc.
+# Edit my-config.yaml to change sources, scoring profile, provider, etc.
 
 # Run with custom config
 python scanner.py --config my-config.yaml
@@ -70,10 +99,11 @@ Everything is in `config.yaml`. The key sections:
 
 ### Scoring profile
 
-The `scoring.profile` field tells Claude who you are and what matters to you. Claude uses this to score articles 1-10. Change it to match your domain:
+The `scoring.profile` field tells the LLM who you are and what matters to you. The LLM uses this to score articles 1-10. Change it to match your domain:
 
 ```yaml
 scoring:
+  provider: "anthropic"
   threshold: 7
   profile: |
     You are a relevance filter for a DevOps engineer focused on
@@ -121,6 +151,33 @@ storage:
   gcs_prefix: "scans"
 ```
 
+### Notifications
+
+Get notified when relevant articles are found:
+
+#### Telegram
+
+```yaml
+notifications:
+  telegram:
+    enabled: true
+    bot_token: "123456:ABC-..."   # or env: TELEGRAM_BOT_TOKEN
+    chat_id: "123456789"          # or env: TELEGRAM_CHAT_ID
+```
+
+Setup: Create a bot with [@BotFather](https://t.me/BotFather), get the token, start a chat, and find your `chat_id` via `https://api.telegram.org/bot<TOKEN>/getUpdates`.
+
+#### Slack
+
+```yaml
+notifications:
+  slack:
+    enabled: true
+    webhook_url: "https://hooks.slack.com/..."  # or env: SLACK_WEBHOOK_URL
+```
+
+Setup: [Create an Incoming Webhook](https://api.slack.com/messaging/webhooks) for your channel.
+
 ## Deploy to Cloud Run
 
 For daily automated scans:
@@ -140,7 +197,7 @@ This creates:
 
 - `gcloud` CLI authenticated
 - GCP project with Cloud Run, Cloud Scheduler, and Secret Manager enabled
-- Anthropic API key stored in Secret Manager:
+- API key stored in Secret Manager:
   ```bash
   echo -n "sk-ant-..." | gcloud secrets create anthropic-api-key --data-file=-
   ```
@@ -176,6 +233,7 @@ Using Claude Haiku for scoring:
 - ~150 articles/day = ~37,500 input tokens + ~4,500 output tokens
 - **~$0.003/day** (~$0.09/month)
 - Cloud Run Job: free tier covers this easily
+- Gemini Flash: **free tier** available!
 
 ## Examples
 
@@ -212,6 +270,27 @@ for source in sources:
     for a in articles:
         print(f"[{a['source']}] {a['title']}")
 ```
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/ -v
+
+# Lint
+flake8 scanner.py tests/ --max-line-length 120
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 

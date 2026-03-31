@@ -7,7 +7,11 @@
 
 # --- Scoring ---
 scoring:
+  # Provider LLM: "anthropic" (default), "openai", o "gemini"
+  provider: "anthropic"
+
   model: "claude-haiku-4-5-20251001"   # Modello per lo scoring (Haiku = economico e veloce)
+  # Per OpenAI: "gpt-4o-mini" | Per Gemini: "gemini-2.0-flash"
   threshold: 7                          # Salva solo articoli con score >= threshold (1-10)
   max_tokens: 100                       # Max token per risposta scoring
 
@@ -173,6 +177,24 @@ sources:
     category: "italian"
     enabled: true
 
+  - name: "IlSole24Ore Tech"
+    url: "https://www.ilsole24ore.com/rss/tecnologie.xml"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "CorCom"
+    url: "https://www.corrierecomunicazioni.it/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "HDblog"
+    url: "https://www.hdblog.it/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
 # --- Fetch ---
 fetch:
   max_articles_per_source: 5    # Max articoli per fonte per scan
@@ -202,3 +224,21 @@ output:
 
   # Genera anche un file latest.json con l'ultimo scan
   write_latest: true
+
+# --- Notifications ---
+# Notifiche opzionali dopo ogni scan (solo se ci sono articoli rilevanti)
+notifications:
+
+  # Telegram: invia i risultati a un bot Telegram
+  # 1. Crea un bot con @BotFather e ottieni il token
+  # 2. Avvia il bot e ottieni il chat_id con https://api.telegram.org/bot<TOKEN>/getUpdates
+  telegram:
+    enabled: false
+    bot_token: ""            # Oppure usa env: TELEGRAM_BOT_TOKEN
+    chat_id: ""              # Oppure usa env: TELEGRAM_CHAT_ID
+
+  # Slack: invia i risultati a un canale Slack via webhook
+  # Crea un webhook: https://api.slack.com/messaging/webhooks
+  slack:
+    enabled: false
+    webhook_url: ""          # Oppure usa env: SLACK_WEBHOOK_URL

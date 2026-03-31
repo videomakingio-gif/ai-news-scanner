@@ -1,0 +1,53 @@
+# Example: Google Gemini Flash configuration
+# Copy to config.yaml and set GEMINI_API_KEY (or GOOGLE_API_KEY) env variable
+# Gemini has a generous free tier!
+
+scoring:
+  provider: "gemini"
+  model: "gemini-2.0-flash"
+  threshold: 7
+  max_tokens: 100
+  profile: |
+    Sei un filtro di rilevanza per un professionista tech italiano.
+    Valuta gli articoli da 1 a 10 in base alla loro utilita' pratica.
+
+    Alta rilevanza (8-10):
+    - Strumenti AI per la produttivita'
+    - Nuovi modelli con applicazioni concrete
+    - AI Act e regolamentazione
+
+    Bassa rilevanza (1-4):
+    - Ricerca accademica pura
+    - News corporate senza impatto pratico
+    - Hype senza sostanza
+
+sources:
+  - name: "Ars Technica AI"
+    url: "https://arstechnica.com/ai/feed/"
+    lang: "en"
+    category: "media"
+    enabled: true
+
+  - name: "AI4Business"
+    url: "https://www.ai4business.it/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+  - name: "Agenda Digitale"
+    url: "https://www.agendadigitale.eu/feed/"
+    lang: "it"
+    category: "italian"
+    enabled: true
+
+fetch:
+  max_articles_per_source: 5
+  hours_lookback: 26
+
+storage:
+  backend: "local"
+  local_path: "./output"
+  dedup_days: 3
+
+output:
+  write_latest: true
