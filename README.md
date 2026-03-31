@@ -1,9 +1,8 @@
 # AI News Scanner
 
-[![CI](https://github.com/videomakingio/ai-news-scanner/actions/workflows/ci.yml/badge.svg)](https://github.com/videomakingio/ai-news-scanner/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Cost: ~$0.09/month](https://img.shields.io/badge/cost-~%240.09%2Fmonth-brightgreen)](https://github.com/videomakingio/ai-news-scanner#cost)
+[![Cost: ~$0.09/month](https://img.shields.io/badge/cost-~%240.09%2Fmonth-brightgreen)](https://github.com/videomakingio-gif/ai-news-scanner#cost)
 
 Intelligent RSS aggregator with LLM-powered relevance scoring. Scans 24 AI news sources daily, scores each article against your professional profile using an LLM, and saves only what's relevant to you.
 
