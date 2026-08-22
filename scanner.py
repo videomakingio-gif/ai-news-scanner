@@ -11,7 +11,7 @@ Supported LLM providers:
 
 Deploy as a Cloud Run Job with Cloud Scheduler for daily automation.
 
-GitHub: github.com/videomakingio-gif/ai-news-scanner
+GitHub: github.com/backpropagation6/ai-news-scanner
 License: MIT
 """
 
@@ -403,6 +403,161 @@ def load_recent_hashes(date_str: str, config: dict) -> set[str]:
     return hashes
 
 
+# -----------------------------------------------------------
+# Reports & Email (PDF, SMTP)
+# -----------------------------------------------------------
+
+def _pdf_safe_text(value: object) -> str:
+    """Return text supported by the portable PDF core fonts.
+
+    fpdf2 core fonts are Latin-1 only. RSS titles may contain curly quotes,
+    emoji, or non-Latin scripts; replacing unsupported glyphs keeps report
+    generation fail-safe without depending on a system font in Cloud Run.
+    """
+    return str(value).encode("latin-1", errors="replace").decode("latin-1")
+
+
+def generate_pdf(articles: list[dict], date_str: str, config: dict) -> Optional[str]:
+    """Generate a PDF report of the scanned articles."""
+    from fpdf import FPDF
+
+    pdf_cfg = config.get("reports", {}).get("pdf", {})
+    if not pdf_cfg.get("enabled", True):
+        return None
+
+    local_path = Path(pdf_cfg.get("local_path", "./output/reports"))
+    local_path.mkdir(parents=True, exist_ok=True)
+    filename = pdf_cfg.get("filename_template", "ai-news-report-{date}.pdf").replace("{date}", date_str)
+    pdf_path = local_path / filename
+
+    class PDF(FPDF):
+        def header(self):
+            self.set_font("helvetica", "B", 20)
+            self.set_text_color(40, 40, 40)
+            self.cell(0, 15, "AI News Scanner - Report", ln=True, align="C")
+            self.set_font("helvetica", "I", 10)
+            self.cell(
+                0,
+                10,
+                _pdf_safe_text(f"Data: {date_str} | Articoli rilevanti: {len(articles)}"),
+                ln=True,
+                align="C",
+            )
+            self.ln(5)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("helvetica", "I", 8)
+            self.set_text_color(128, 128, 128)
+            self.cell(0, 10, f"Pagina {self.page_no()}/{{nb}}", align="C")
+
+    pdf = PDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("helvetica", size=11)
+
+    for i, a in enumerate(articles, 1):
+        # Score & Title
+        score = a.get("relevance_score", 0)
+        pdf.set_font("helvetica", "B", 12)
+        pdf.set_text_color(0, 102, 204) # Blue
+        pdf.multi_cell(0, 7, _pdf_safe_text(f"{i}. [{score}/10] {a['title']}"))
+        pdf.set_x(pdf.l_margin)
+
+        # Meta (Source, Date)
+        pdf.set_font("helvetica", "I", 9)
+        pdf.set_text_color(100, 100, 100)
+        source_str = _pdf_safe_text(
+            f"Fonte: {a['source']} | Tags: {', '.join(a.get('tags', []))}"
+        )
+        pdf.cell(0, 6, source_str, ln=True)
+
+        # Reason
+        pdf.set_font("helvetica", "B", 10)
+        pdf.set_text_color(0, 153, 76) # Green
+        pdf.multi_cell(
+            0,
+            6,
+            _pdf_safe_text(f"Perché è rilevante: {a.get('relevance_reason', 'N/A')}"),
+        )
+        pdf.set_x(pdf.l_margin)
+
+        # Summary
+        pdf.set_font("helvetica", "", 10)
+        pdf.set_text_color(50, 50, 50)
+        summary = _pdf_safe_text(a.get("summary", "")[:600])
+        pdf.multi_cell(0, 6, summary)
+        pdf.set_x(pdf.l_margin)
+
+        # URL
+        pdf.set_font("helvetica", "U", 9)
+        pdf.set_text_color(0, 0, 255)
+        pdf.cell(0, 8, "Leggi articolo completo", link=a["url"], ln=True)
+        pdf.ln(4)
+
+    pdf.output(str(pdf_path))
+    log.info(f"PDF report generated: {pdf_path}")
+    return str(pdf_path)
+
+
+def _send_email(articles: list[dict], config: dict, pdf_path: Optional[str] = None):
+    """Send report via email with PDF attachment."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.mime.application import MIMEApplication
+
+    email_cfg = config.get("notifications", {}).get("email", {})
+    if not email_cfg.get("enabled", False):
+        return
+
+    smtp_user = email_cfg.get("smtp_user") or os.environ.get("EMAIL_USER")
+    smtp_pass = email_cfg.get("smtp_password") or os.environ.get("EMAIL_PASSWORD")
+    to_email = email_cfg.get("to_email") or os.environ.get("EMAIL_TO")
+
+    if not all([smtp_user, smtp_pass, to_email]):
+        log.warning("Email notifications enabled but missing configuration (user, pass, or to_email).")
+        return
+
+    # Create message
+    msg = MIMEMultipart()
+    msg["Subject"] = email_cfg.get("subject", "AI News Scanner - Report")
+    msg["From"] = smtp_user
+    msg["To"] = to_email
+
+    body = f"Ciao,\n\necco il report giornaliero di AI News Scanner.\n"
+    body += f"Oggi sono stati trovati {len(articles)} articoli rilevanti.\n\n"
+
+    for a in articles[:5]:
+        body += f"- [{a.get('relevance_score')}/10] {a['title']}\n"
+    if len(articles) > 5:
+        body += f"...e altri {len(articles)-5} articoli.\n"
+
+    body += "\nIn allegato trovi il report PDF completo.\n\nSaluti,\nAI News Scanner"
+    msg.attach(MIMEText(body, "plain"))
+
+    # Attach PDF
+    if pdf_path and os.path.exists(pdf_path):
+        with open(pdf_path, "rb") as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
+            part["Content-Disposition"] = f'attachment; filename="{os.path.basename(pdf_path)}"'
+            msg.attach(part)
+
+    # Send
+    try:
+        with smtplib.SMTP(
+            email_cfg.get("smtp_server", "smtp.gmail.com"),
+            int(email_cfg.get("smtp_port", 587)),
+            timeout=20,
+        ) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        log.info(f"  Email: report sent to {to_email}")
+    except Exception as e:
+        log.warning(f"  Email notification failed: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Notifications (Telegram, Slack)
 # ---------------------------------------------------------------------------
@@ -483,7 +638,7 @@ def _send_slack(articles: list[dict], config: dict):
         log.warning(f"  Slack notification failed: {e}")
 
 
-def send_notifications(articles: list[dict], config: dict):
+def send_notifications(articles: list[dict], config: dict, pdf_path: Optional[str] = None):
     """Send notifications to all configured channels."""
     notif_cfg = config.get("notifications", {})
     if not notif_cfg or not articles:
@@ -496,6 +651,9 @@ def send_notifications(articles: list[dict], config: dict):
 
     if notif_cfg.get("slack", {}).get("enabled", False):
         _send_slack(articles, config)
+
+    if notif_cfg.get("email", {}).get("enabled", False):
+        _send_email(articles, config, pdf_path)
 
 
 # ---------------------------------------------------------------------------
@@ -730,7 +888,8 @@ def _main_rich(config_path: str = None):
 
     # Phase 5: Notify
     if relevant:
-        send_notifications(relevant, config)
+        pdf_path = generate_pdf(relevant, date_str, config)
+        send_notifications(relevant, config, pdf_path=pdf_path)
 
     # Final report
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
@@ -844,7 +1003,8 @@ def main(config_path: str = None, use_rich: bool = False):
 
     # 6. Notify
     if relevant:
-        send_notifications(relevant, config)
+        pdf_path = generate_pdf(relevant, date_str, config)
+        send_notifications(relevant, config, pdf_path=pdf_path)
 
     # 7. Report
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()

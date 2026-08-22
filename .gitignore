@@ -15,6 +15,7 @@ venv/
 # Environment
 .env
 .env.local
+config-local.yaml
 
 # IDE
 .vscode/

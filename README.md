@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Cost: ~$0.09/month](https://img.shields.io/badge/cost-~%240.09%2Fmonth-brightgreen)](https://github.com/videomakingio-gif/ai-news-scanner#cost)
+[![Cost: ~$0.09/month](https://img.shields.io/badge/cost-~%240.09%2Fmonth-brightgreen)](https://github.com/backpropagation6/ai-news-scanner#cost)
 
 Intelligent RSS aggregator with LLM-powered relevance scoring. Scans 24 AI news sources daily, scores each article against your professional profile using an LLM, and saves only what's relevant to you.
 
@@ -62,7 +62,7 @@ Add, remove, or disable sources in `config.yaml`. No code changes needed.
 ### Local setup
 
 ```bash
-git clone https://github.com/videomakingio-gif/ai-news-scanner.git
+git clone https://github.com/backpropagation6/ai-news-scanner.git
 cd ai-news-scanner
 
 pip install -r requirements.txt
@@ -188,12 +188,36 @@ notifications:
 
 Setup: [Create an Incoming Webhook](https://api.slack.com/messaging/webhooks) for your channel.
 
+#### PDF and email
+
+PDF generation is enabled by default for scans that find relevant articles.
+The report is written under `output/reports/`, which is ignored by Git.
+
+Email delivery is opt-in:
+
+```yaml
+notifications:
+  email:
+    enabled: true
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_user: ""       # or env: EMAIL_USER
+    smtp_password: ""   # or env: EMAIL_PASSWORD
+    to_email: ""        # or env: EMAIL_TO
+```
+
+Keep credentials outside YAML. `config-local.yaml` is ignored for local
+overrides, but environment variables or Secret Manager are preferred.
+
 ## Deploy to Cloud Run
 
 For daily automated scans:
 
 ```bash
-# Edit deploy.sh with your GCP project ID
+# Defaults can be overridden without editing the script.
+export GCP_PROJECT_ID="your-project-id"
+export LLM_ENV_VAR="ANTHROPIC_API_KEY"
+export LLM_SECRET_NAME="anthropic-api-key"
 chmod +x deploy.sh
 ./deploy.sh
 ```
@@ -211,6 +235,12 @@ This creates:
   ```bash
   echo -n "sk-ant-..." | gcloud secrets create anthropic-api-key --data-file=-
   ```
+
+The deploy is fail-closed when the selected LLM secret is missing. It creates
+a dedicated scheduler service account and grants it only `roles/run.invoker`
+on the job. Optional SMTP secrets are not required while email delivery is
+disabled; wire `EMAIL_USER`, `EMAIL_PASSWORD`, and `EMAIL_TO` explicitly when
+enabling it in production.
 
 ## Output format
 

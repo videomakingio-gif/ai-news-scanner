@@ -242,3 +242,20 @@ notifications:
   slack:
     enabled: false
     webhook_url: ""          # Oppure usa env: SLACK_WEBHOOK_URL
+
+  # Email: invia il report PDF via mail
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    smtp_user: ""            # Oppure usa env: EMAIL_USER
+    smtp_password: ""        # Oppure usa env: EMAIL_PASSWORD (usa App Password per Gmail)
+    to_email: ""             # Destinatario del report
+    subject: "AI News Scanner - Report Giornaliero"
+
+# --- Reports ---
+reports:
+  pdf:
+    enabled: true
+    local_path: "./output/reports"
+    filename_template: "ai-news-report-{date}.pdf"
